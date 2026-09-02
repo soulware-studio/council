@@ -1,0 +1,6 @@
+interface:
+  display_name: "Council"
+  short_description: "Parallel plan review with specialist agents"
+  default_prompt: "Use $council to stress-test this plan with the council before implementation."
+policy:
+  allow_implicit_invocation: true
