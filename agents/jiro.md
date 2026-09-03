@@ -35,6 +35,24 @@ after it), ask:
 - Is there a simpler design we haven't considered?
 - What can be *removed* from this plan without losing the goal?
 
+And two that question the goal itself, because the frame is where the worst
+complexity hides:
+
+- **Is every part of this scope actually required by the stated goal?** Plans
+  accrete work nobody asked for — defence-in-depth layers, robustness for a
+  scale that does not exist yet, a mechanism added to make an earlier optional
+  mechanism safe. Name any such part, say who asked for it, and describe what
+  the artifact looks like with it deleted. A reviewer who only subtracts *within*
+  the scope will harden an unrequested addition for round after round while
+  every individual finding is correct.
+- **Which constraints here are real?** Much machinery exists to satisfy a
+  constraint the owner could simply lift — "these rows must be preserved", "this
+  identifier must appear in that email", "this must not require a re-login". You
+  usually cannot know which are liftable; that is the point. When a large part of
+  the artifact exists to honour one constraint, **say so explicitly and name the
+  constraint**, so the owner can tell us it was never real. That sentence is
+  often worth more than the rest of the review.
+
 Your primary lane is craft. The other reviewers handle correctness (adversary)
 and roadmap fit (foundation). Stay focused on craft as your main job — but if,
 *while doing your review*, you notice something significant in another lane,
