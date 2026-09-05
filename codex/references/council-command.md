@@ -148,7 +148,7 @@ read. Default output is SHORT and in plain language:
 
 ```
 ## Council: [one plain sentence — what was reviewed, and in which mode]
-Ran: jiro (<model>/<effort>) · adversary (<model>/<effort>) · foundation (<model>/<effort>) · codex (<model from its MODEL line>)
+Ran: jiro (<model>/<effort>) · adversary (<model>/<effort>) · foundation (<model>/<effort>) · codex (<MODEL>/<EFFORT>)
 
 **Bottom line:** [ship it | needs fixes | wrong approach] — one sentence why.
 [Overall = the most severe individual verdict: any rethink → wrong approach;
@@ -171,9 +171,11 @@ want it.")
 ```
 
 Build the `Ran:` line by reading the `model:`/`effort:` frontmatter of the
-three Claude agent files (one grep) plus the `MODEL:` line codex returns. For
-a reviewer on `inherit`, print the actual session model instead of the
-literal word "inherit". This line is the user's drift alarm — a stale codex
+three Claude agent files (one grep) plus the `MODEL:` and `EFFORT:` lines codex
+returns. For a reviewer on `inherit`, print the actual session model; when
+`effort:` is absent, report the inherited session effort. If a runtime value
+is unavailable, mark it unverified rather than guessing. This line is the
+user's drift alarm — a stale codex
 model or an unexpected reviewer model should be visible on every single run.
 
 ### The 🔔 NEEDS YOUR DECISION block
@@ -243,13 +245,15 @@ and the 🔔/🟢 closer. It will just be short.
 - **Persistent:** each reviewer's `model:` and `effort:` are two frontmatter
   lines in its agent file (`~/.claude/agents/{jiro,adversary,foundation}.md`).
   When the user asks to change them ("set all council reviewers back to
-  inherit", "put adversary on opus"), edit those lines directly.
+  inherit", "put adversary on opus"), edit the source of those files. Use
+  `model: inherit` and omit `effort:` to inherit both session settings.
 - **Per-run:** if the user asks for a different model for this council only
   ("council this with everyone on opus"), pass the `model` override on each
   Agent call. Effort has no per-run override — frontmatter only.
-- **codex** follows `~/.codex/config.toml` (`model = ...`), not Claude Code
-  config. Its actual model appears in the `Ran:` line every run — if you know
-  a newer OpenAI model exists than what's shown, say so.
+- **codex** is pinned to GPT-6 Astra / max by the invocation in its outside
+  reviewer instructions. This overrides `~/.codex/config.toml` for the review;
+  its actual model and effort appear in `Ran:` every run. Honor explicit user
+  overrides without silently changing the persistent defaults.
 
 ## Council Discipline
 

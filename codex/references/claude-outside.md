@@ -22,6 +22,10 @@ not redundancy.
 
 Run: `claude --version`
 
+Claude Fable 5.1 requires Claude Code **2.1.251 or newer**. If an older version
+is installed, report this lane as `skip` with the required version and suggest
+`claude update`. Do not substitute another model.
+
 If the command is not found or the native binary is unavailable, return
 immediately with:
 
@@ -63,22 +67,42 @@ The prompt should contain:
 ### Step 3: Invoke Claude
 
 Run Claude from the project root so it has filesystem context. Pipe the prompt
-via stdin in non-interactive print mode:
+via stdin in non-interactive print mode. Pin this council lane to **Claude
+Fable 5.1 / max** using the full model ID and explicit effort flag; do not
+inherit the CLI's defaults or use a moving model alias:
 
 ```bash
-cd <project-root> && claude -p <<'PROMPT'
+cd <project-root>
+CLAUDE_CODE_EFFORT_LEVEL=max claude -p --model claude-fable-5-1 --effort max --output-format stream-json --verbose <<'PROMPT'
 <full prompt content>
 PROMPT
 ```
 
-Capture the output. If Claude fails (network error, auth issue, timeout), return:
+Parse the JSONL events. Preserve the final `type: "result"` event's `result`
+field verbatim as the review. Verify the review model from each main-session
+`type: "assistant"` event's `message.model`, and report it with the explicit
+CLI effort setting. `modelUsage` can also contain internal helper models such
+as Haiku; those entries alone do not indicate a reviewer fallback. If assistant
+model metadata is absent, mark the model unverified. If a review message names
+a different model, the pin failed.
+
+The command-scoped environment setting keeps an inherited
+`CLAUDE_CODE_EFFORT_LEVEL` from overriding the requested effort. If the user
+overrides effort for this run, change both that setting and `--effort`.
+
+If Claude fails (network error, auth issue, timeout, `is_error: true`, or a
+model mismatch), return:
 
 ```
 VERDICT: skip
+MODEL: <observed model, or requested claude-fable-5-1 (unverified)>
+EFFORT: max (requested)
 REASON: Claude invocation failed: <brief error>
 ```
 
-Do not retry more than once.
+Do not retry more than once. Keep the same model and effort on retry; do not
+add `--fallback-model` or silently lower effort. Honor an explicit user model
+or effort override for the current run and report that actual setting.
 
 ### Step 4: Return Claude's verdict
 
@@ -90,6 +114,8 @@ Wrap it like this:
 
 ```
 VERDICT: [extract from Claude output: ship it | revise | rethink]
+MODEL: <verified model from assistant events, or requested model (unverified)>
+EFFORT: max (explicit CLI setting; use the actual value if overridden)
 
 --- CLAUDE REVIEW (verbatim) ---
 

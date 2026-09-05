@@ -15,9 +15,9 @@ different URL, a local clone, or a downloaded/extracted copy instead, use
 that.
 
 **Step 1 — get the files.** Retrieve (via fetch, or by reading a local clone)
-these paths from the repo: `commands/council.md`, `agents/jiro.md`,
-`agents/adversary.md`, `agents/foundation.md`, `agents/codex.md`, and — if the
-user also wants the Codex-CLI-native skill — everything under `codex/`.
+the files for the tool you are installing into. Claude Code needs
+`commands/council.md` and `agents/{jiro,adversary,foundation,codex}.md`. Codex
+needs everything under `codex/`. Retrieve both sets if the user wants both.
 
 **Step 2 — figure out which tool you are and where things go:**
 
@@ -41,6 +41,10 @@ see what's new, then ask whether to back it up (e.g. suffix the old file
 with `.bak-<date>`) or overwrite. If it exists and is already identical,
 just say so and move on — nothing to do.
 
+Preserve explicit user/project roster overrides during updates unless the user
+asks to reset them. The public defaults are inherited model and effort for the
+three native reviewers, with pinned model and effort for the outside reviewer.
+
 **Step 3 — check for the OTHER model's CLI.** Each direction's fourth
 reviewer is a *different* model than the one you're installing into, so
 check for the other one:
@@ -50,14 +54,20 @@ check for the other one:
   actually work, tell them plainly: they need to install the Codex CLI and
   authenticate it (a paid ChatGPT plan, or an OpenAI API key) — don't attempt
   to install it for them without asking, it's their choice of auth method.
-  Without it, the council still runs fine with three reviewers.
+  Without it, the council still runs fine with three reviewers. This outside
+  lane invokes `gpt-6-astra` with `max` reasoning effort; its CLI/account must
+  support those settings.
 - **If you installed the Codex-native path:** run `claude --version` instead
   — that skill's outside lane shells out to Claude Code, not Codex. Same
   logic: missing means three reviewers instead of four, tell the user how to
-  add it, don't install it for them unasked.
+  add it, don't install it for them unasked. This outside lane invokes
+  `claude-fable-5-1` at `max` effort and requires Claude Code **2.1.251 or newer**.
+  If older, explain that `claude update` is needed before this lane can run.
 
-If the relevant CLI is already present, just confirm the version and move
-on.
+Confirm the CLI version and pinned model requirements. A working `--version`
+does not prove authentication or model access. If the requested model or effort
+is unavailable at runtime, report a skipped lane with the reason; never silently
+substitute a different model or effort.
 
 **Step 4 — offer the automation policy.** Ask the user: "Do you want the
 council to run automatically — before non-trivial plans and after real
@@ -78,7 +88,9 @@ than overwriting the rest of the file.
 
 **Step 5 — confirm and explain.** Tell the user in plain language what you
 just did (which files went where, whether the other CLI was found, whether
-you added the automation policy). If you installed the Claude Code path,
+you added the automation policy), including the roster: three native reviewers
+inherit model and effort; the outside reviewer uses Fable 5.1 / max from Codex,
+or GPT-6 Astra / max from Claude Code. If you installed the Claude Code path,
 they can now type `/council` in **any** project (it's a global install). If
 you installed the Codex-native path into a project's `.agents/skills/`,
 it's available in **this project only** — say so explicitly rather than

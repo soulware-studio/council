@@ -22,6 +22,10 @@ perspective*, not redundancy.
 
 Run: `codex --version`
 
+Use a current Codex CLI with GPT-6 Astra support. If the service reports that
+the CLI is too old, return `skip` and explain that Codex must be updated before
+this pinned lane can run; do not substitute another model.
+
 If the command is not found, return immediately with:
 
 ```
@@ -125,7 +129,8 @@ macOS):
 Pipe the prompt via stdin (foreground):
 
 ```bash
-cd <project-root> && perl -e 'alarm 480; exec @ARGV' -- codex exec - <<'PROMPT'
+cd <project-root>
+perl -e 'alarm 480; exec @ARGV' -- codex exec --model gpt-6-astra -c 'model_reasoning_effort="max"' - <<'PROMPT'
 <full prompt content>
 PROMPT
 ```
@@ -133,16 +138,18 @@ PROMPT
 8 minutes is the ceiling, not a target. Codex is thorough and may read many
 files — keep it inside the budget with **tight file scope** (point it at
 specific files / line ranges, never an omnibus full-file read of a large file).
-A tightly-scoped review at medium reasoning usually returns in 1–3 minutes; if a
-review genuinely needs more than 8 minutes, the scope is too broad — narrow it,
-don't reach for the background path.
+This lane is pinned to **GPT-6 Astra / max**, overriding the CLI's configured
+model and effort. If a review needs more than 8 minutes, narrow the scope;
+keep the requested model and effort rather than reaching for the background
+path or silently lowering effort.
 
 Capture the output. Codex runs non-interactively and returns its response to
-stdout. Don't pin a model here — Codex uses `~/.codex/config.toml` (or its
-built-in default). Note which model actually ran: the codex CLI prints it near
-the top of its output; if you can't find it there, read it with
-`grep '^model' ~/.codex/config.toml`. You will report it in Step 4 so model
-staleness is visible to the user on every council run.
+stdout. Read the actual model and reasoning effort from the CLI's startup
+header and report them in Step 4. Do not infer the runtime settings from
+`~/.codex/config.toml`: the explicit invocation overrides that file. If the
+header is absent, mark the requested settings unverified. If it reports a
+different model or effort, return `skip` with the mismatch; do not present
+that result as a successful pinned review.
 
 If the alarm killed codex (exit code 142 / killed by SIGALRM, or the output
 cuts off with no verdict near ~8 minutes), it exceeded its budget — return:
@@ -154,14 +161,17 @@ file scope (point it at fewer, specific files / line ranges) — the omnibus
 full-file read is what blows the budget.
 ```
 
-If Codex otherwise fails (network error, auth issue), return:
+If Codex otherwise fails (network error, auth issue, unsupported model or
+effort), return:
 
 ```
 VERDICT: skip
 REASON: Codex invocation failed: <brief error>
 ```
 
-Do not retry more than once. Never block the council waiting past the budget —
+Do not retry more than once, and keep the same model and effort on retry.
+Honor an explicit user override for the current run and report those actual
+settings. Never block the council waiting past the budget —
 the three in-model reviewers plus commit/push pace beats stalling on Codex.
 
 ### Step 4: Return Codex's verdict
@@ -173,7 +183,8 @@ words. The whole point is the unfiltered second opinion.
 Wrap it like this:
 
 ```
-MODEL: [the model Codex actually ran, e.g. gpt-5.6-sol]
+MODEL: [the model Codex actually ran, normally gpt-6-astra]
+EFFORT: [the reasoning effort Codex actually used, normally max]
 VERDICT: [extract from Codex output: ship it | revise | rethink]
 
 --- CODEX REVIEW (verbatim) ---

@@ -88,13 +88,28 @@ changed, in plain language, with nothing generated or copied from elsewhere.
 
 ## Tuning the roster
 
-- **Persistent:** each reviewer's `model:` / `effort:` is two frontmatter
-  lines in its agent file (`~/.claude/agents/{jiro,adversary,foundation}.md`)
-  — just ask Claude ("set all council reviewers to opus").
-- **One-off:** "council this with everyone on opus" overrides the model for
-  that run only (effort has no per-run override).
-- **codex** uses the model pinned in `~/.codex/config.toml`; the `Ran:` line
-  shows what actually ran, so a stale pin is easy to spot.
+The public defaults depend on which tool starts the council:
+
+| Council started from | Jiro, Adversary, Foundation | Outside reviewer |
+| --- | --- | --- |
+| Codex | Inherit the Codex session's model and reasoning effort | Claude Fable 5.1 / max |
+| Claude Code | Inherit the Claude session's model and effort | GPT-6 Astra / max |
+
+The outside reviewers use full model IDs and explicit effort flags, overriding
+their CLI defaults for that review. Fable 5.1 requires Claude Code **2.1.251 or
+newer**; run `claude update` if needed. Both outside lanes require authentication
+and access to the pinned model. If a pin is unavailable, the lane reports
+`skip` and the reason instead of silently switching models. The `Ran:` line
+shows the model and effort used, with unverified settings labeled explicitly.
+
+- **Claude reviewers:** edit `model:` / `effort:` in the installed agent files.
+  Use `model: inherit` and omit `effort:` to inherit both session settings.
+- **Codex reviewers:** set an explicit council roster in the project's
+  `AGENTS.md` to override inheritance. For example, request GPT-6 Astra with
+  `max` reasoning effort for all three. This keeps project preferences separate
+  from the downloadable skill's defaults.
+- **Outside reviewers:** change the model and effort in their invocation
+  instructions, or ask for an override for one council run.
 
 ## Making it automatic (optional)
 
@@ -153,9 +168,8 @@ WSL).
 - **When two reviewers disagree on a factual claim, measure it rather than
   asking a fifth opinion.** A short, real test usually settles it faster than
   more argument does.
-- **The Codex lane does better work at a tighter scope and moderate reasoning
-  effort than an open-ended, maximum-effort pass over everything.** Point it
-  at specific files or line ranges rather than an entire large diff.
+- **Keep the Codex lane tightly scoped, including at max effort.** Point it at
+  specific files or line ranges so it can finish within the review budget.
 
 ## License
 
