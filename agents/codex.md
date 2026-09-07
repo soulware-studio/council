@@ -105,8 +105,15 @@ running. Review the artifact YOURSELF and return your own verdict.
 
 ### Step 3: Invoke Codex
 
-This lane assumes a Unix-like shell with `bash` and `perl`, both present by
-default on macOS and Linux; on Windows, run it under WSL.
+The shell example below is for macOS/Linux. On Windows, stay native: use
+Python `subprocess.run` with a list of arguments and feed the prompt through
+`input=...` (stdin), not a shell command string. Resolve the executable with
+`shutil.which("codex")`, set `cwd` to the checkout under review, and use
+`timeout=900`. Pass the same explicit model and reasoning settings shown below.
+Do not move WPF/Open Dental work into WSL to run a review. Avoid Bash heredocs
+for large prompts and Unix `perl alarm` wrappers on Windows. Preserve the scope
+lock and keep read commands simple and bounded; do not let a failed read turn
+into repeated variations on the same refused command.
 
 Run `codex exec` from the project root so Codex has filesystem context, in the
 **FOREGROUND** (a blocking Bash call), under an **~8-minute wall-clock budget**.

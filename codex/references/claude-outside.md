@@ -78,6 +78,16 @@ CLAUDE_CODE_EFFORT_LEVEL=max claude -p --model claude-fable-5-1 --effort max --o
 PROMPT
 ```
 
+On native Windows, use Python `subprocess.run` with an argument list:
+`[shutil.which("claude"), "-p", "--model", "claude-fable-5-1", "--effort",
+"max", "--output-format", "stream-json", "--verbose"]`. Feed the prompt via
+`input=prompt`, with `text=True`, `encoding="utf-8"`, `capture_output=True`,
+`cwd=project_root`, and a bounded timeout. Pass a copy of `os.environ` with
+`CLAUDE_CODE_EFFORT_LEVEL` set to `max`; do not alter the parent environment.
+This preserves paths with spaces and avoids PowerShell interpreting Unix
+environment assignments or heredocs. Missing executable or timeout means
+`skip`, under the same retry and no-fallback rules below.
+
 Parse the JSONL events. Preserve the final `type: "result"` event's `result`
 field verbatim as the review. Verify the review model from each main-session
 `type: "assistant"` event's `message.model`, and report it with the explicit
