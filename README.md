@@ -1,8 +1,9 @@
 # The Council
 
-A panel of four reviewers you convene with **`/council`** to stress-test your
+A panel of reviewers you convene with **`/council`** to stress-test your
 work before it bites you — either a **plan** (before you build) or a **diff**
-(after you build). Four lenses, one synthesized verdict.
+(after you build). Three lenses, up to two outside models, one synthesized
+verdict.
 
 ## When to use it
 
@@ -38,7 +39,7 @@ If you don't want to remember to ask, see "Making it automatic" below —
 `INSTALL.md` asks you about this directly during setup, so it's a choice you
 make once up front rather than something to rediscover later.
 
-## The four reviewers
+## The reviewers
 
 - **jiro — the craftsman.** Obsessed with simplicity. Asks "what can we remove?"
   Fights complexity and anything bolted-on.
@@ -50,15 +51,21 @@ make once up front rather than something to rediscover later.
 - **codex — the outside opinion.** Hands the work to a *different* model
   (OpenAI's Codex) for an independent second read. A different brain catches
   what one brain's blind spots miss. Optional — if the Codex CLI isn't
-  installed, this lane returns `skip` and the other three still run.
+  installed, this lane returns `skip` and the others still run.
+- **grok — the second outside opinion.** Hands the work to xAI's **Grok
+  Build CLI**, a third model family, read-only. It runs beside codex so you can
+  see, run after run, what each outside model catches that the other misses —
+  every finding is tagged with the reviewers that raised it. Optional, and
+  Claude Code-hosted only; without the CLI it returns `skip`.
 
-The overall verdict is the most severe of the four (`ship it` / `revise` /
+The overall verdict is the most severe of the reviewers that ran (a partial
+Grok read does not count toward it) (`ship it` / `revise` /
 `rethink`), and the synthesis leads with anything **2+ reviewers agree on** —
 those are the high-confidence findings.
 
 ## What a council run looks like
 
-The reply is a short, plain-language summary — not four engineering reports:
+The reply is a short, plain-language summary — not a stack of engineering reports:
 a one-line `Ran:` roster (which model and effort each reviewer used, so a
 stale or unexpected model is visible every run), a bottom line, the handful
 of merged findings, and — always last — a `🔔 NEEDS YOUR DECISION` block.
@@ -66,7 +73,7 @@ Anything that changes the spec, scope, or a major design direction lands
 there with a recommendation and a brief why; on code reviews, so does any
 place the implementation diverged from the plan. `🟢 Nothing needs your
 input.` means you're clear. Ask for "the full council report" if you want
-per-reviewer detail and Codex's verbatim review.
+per-reviewer detail and the outside models' verbatim reviews.
 
 ## Installing
 
@@ -90,10 +97,10 @@ changed, in plain language, with nothing generated or copied from elsewhere.
 
 The public defaults depend on which tool starts the council:
 
-| Council started from | Jiro, Adversary, Foundation | Outside reviewer |
+| Council started from | Jiro, Adversary, Foundation | Outside reviewers |
 | --- | --- | --- |
 | Codex | Inherit the Codex session's model and reasoning effort | Claude Fable 5.1 / max |
-| Claude Code | Inherit the Claude session's model and effort | GPT-6 Astra / max |
+| Claude Code | Inherit the Claude session's model and effort | GPT-6 Astra / max, and Grok 4.7 / high |
 
 The outside reviewers use full model IDs and explicit effort flags, overriding
 their CLI defaults for that review. Fable 5.1 requires Claude Code **2.1.251 or
@@ -110,6 +117,10 @@ shows the model and effort used, with unverified settings labeled explicitly.
   from the downloadable skill's defaults.
 - **Outside reviewers:** change the model and effort in their invocation
   instructions, or ask for an override for one council run.
+- **Seat swap (one run):** `/council grok=adversary` (or `jiro` /
+  `foundation`) puts Grok in that seat with that reviewer's lens instead of the
+  Claude agent. If Grok can't run, the Claude agent stands in — a seat is never
+  left empty.
 
 ## Making it automatic (optional)
 
@@ -140,16 +151,46 @@ direction: just ask Claude — "add the auto-council policy to this project" /
 
 ## The Codex outside lane (optional but recommended)
 
-The fourth reviewer calls OpenAI's **Codex CLI**. Install it and make sure
+This reviewer calls OpenAI's **Codex CLI**. Install it and make sure
 `codex` runs in your terminal. Auth is either a paid ChatGPT plan (includes
 Codex usage) or an OpenAI API key (pay-per-token, no subscription). Without
-it the council still runs with three reviewers.
+it the council still runs without it.
 
 The `codex/` folder is the mirror image: if the Codex CLI is your main tool,
-it lets you run the same four-reviewer council *from* Codex, with Claude Code
-as its outside lane. It assumes a Unix-like shell with `bash` and `perl`
+it lets you run the council *from* Codex — its three reviewers plus Claude Code
+as the outside lane (no Grok lane on that side). It assumes a Unix-like shell with `bash` and `perl`
 (both present by default on macOS and Linux; Windows users can run it under
 WSL).
+
+## What outside reviewers can read
+
+Everything an outside model reads leaves your machine, so each lane is
+confined by its CLI's own flags. Grok and the Claude Code lane read only the
+repository under review. Codex reads only the
+repository on macOS and Linux; on Windows its sandbox keeps your home folder,
+drives and network shares out but cannot hide files that every local user
+can read, and the council labels that run as home-excluded rather than
+repository-only.
+
+## The Grok outside lane (optional)
+
+The fifth reviewer calls xAI's **Grok Build CLI** (`grok`), pinned to
+grok-4.7 / high. A review takes 10-15 minutes, so the orchestrator runs it as a
+background task while the other reviewers work. Grok is an agentic CLI that can edit files, run commands,
+read anywhere, and by default imports your Claude Code settings. So the lane
+runs it from an isolated home (`~/.grok-council`, config rewritten every run,
+every Claude/Cursor import off, API-key auth disabled) with only read-only
+tools (`read_file`, `list_dir`, `grep` — no shell, no edits, no web, no
+subagents) and denies every path outside the repository. Grok's own
+`--sandbox` is not used. Everything Grok reads —
+the diff or plan, and repository files — goes to xAI, so keep secrets and
+regulated data out of reviewed repositories.
+
+Setup, once per machine: install (`curl -fsSL https://x.ai/cli/install.sh |
+bash`, or on Windows `irm https://x.ai/cli/install.ps1 | iex`), then sign the
+isolated home in with a SuperGrok or X Premium+ account:
+`GROK_HOME=~/.grok-council grok login --device-auth`. Without Grok the
+council runs with the other four.
 
 ## Lessons from a few hundred runs
 

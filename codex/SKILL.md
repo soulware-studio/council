@@ -33,6 +33,10 @@ report the failed lane; do not silently substitute a model or lower effort.
 Honor an explicit user override for a particular run without changing these
 persistent settings.
 
+The shared command reference also describes a `grok` lane and per-run Grok
+seat swaps. Those are Claude-host only: a Codex-hosted council runs its three
+reviewers plus the Claude outside lane, and its `Ran:` line has no grok entry.
+
 ## Workflow
 
 1. Determine the **mode** (`plan` vs `code`) and identify the artifact using
@@ -58,7 +62,10 @@ persistent settings.
    - First verify `claude --version`.
    - If unavailable, return `VERDICT: skip` for that lane.
    - Use the pinned `claude -p` invocation in that reference from the repo root
-     and pass the plan/proposal plus file pointers. Let Claude read code itself.
+     (it is confined to the repository and has no shell).
+     Plan mode: pass the plan plus file pointers. Code mode: paste the raw
+     `git diff` as that reference describes — Claude cannot run git — and let
+     it read the changed files itself.
 5. Collect verdicts: `ship it`, `revise`, `rethink`, or `skip`.
 6. Synthesize one council verdict using the format in
    `references/council-command.md`.
@@ -80,5 +87,6 @@ persistent settings.
 - Parallel fan-out is the point; do not run council reviewers sequentially.
 - Keep reviewer prompts unmodified unless the user explicitly asks for a
   changed lens.
-- Do not paste large code into the outside-model prompt. Give file paths and
-  let the outside model inspect the repo.
+- Do not paste curated code into the outside-model prompt. Give file paths and
+  let the outside model inspect the repo; the one exception is the raw diff in
+  code mode, because the Claude lane has no shell to produce it.

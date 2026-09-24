@@ -51,20 +51,48 @@ let Claude use its own tools to read whatever it needs.
 
 The prompt should contain:
 
-1. **What this is**: "You are reviewing an implementation plan before any code
-   is written. Your job is to find problems with it. You have access to the
-   filesystem — read whatever files you need to judge the plan."
+1. **What this is** — plan mode: "You are reviewing an implementation plan
+   before any code is written. Your job is to find problems with it. You have
+   access to the filesystem — read whatever files you need to judge the plan."
+   Code mode: "You are reviewing committed code after implementation; the diff
+   is below (see Step 3). Find bugs, regressions and craft problems the tests
+   passed over; read the changed files and their neighbours yourself."
 2. **Full plan text**: Embed the plan verbatim.
 3. **File pointers**: A list of files the plan touches, by relative path. Tell
    Claude to read them itself.
 4. **Review request**: Ask Claude to evaluate the plan for correctness,
    architectural soundness, and anything that looks wrong. Ask for specific,
-   actionable concerns — not generic feedback. Tell Claude it is one of four
-   reviewers and its value is the unfiltered second-model perspective.
+   actionable concerns — not generic feedback. Tell Claude it is one of several
+   council reviewers and its value is the unfiltered second-model perspective.
 5. **Output format**: Ask Claude to respond with a verdict
    (`ship it` / `revise` / `rethink`) and a numbered list of concerns.
 
 ### Step 3: Invoke Claude
+
+**Reads stay inside the repository.** Run from the repository root with
+`--permission-mode dontAsk`, `--setting-sources ""` (load NO settings file —
+user, project or local — so no allow rule, extra directory or hook from any
+of them applies; the reviewed repository's own `.claude/settings.json` must
+not be able to widen its reviewer) and `--strict-mcp-config` with no MCP
+config (no MCP servers). Claude Code then reads, globs and greps inside its
+working directory and refuses everything outside it. Measured 2026-09-24 (Claude Code 2.1.281) with canaries: a sibling folder,
+a home-folder file, a glob of the parent and a grep of the home folder were
+all refused, while repository reads worked — and the flag overrode a permissive
+user-level default permission mode. **Never pass `--allowedTools Read`** (or any
+bare Read/Glob/Grep allow): a plain `Read` allow made every path on the disk
+readable in the same test. `--disallowedTools` removes the tools that could
+write, run commands, spawn agents or reach the network. The flag takes a
+list, so the prompt must arrive on stdin, never as a trailing argument. Every
+invocation form below carries the same flags (a test enforces it).
+
+**Code mode:** Claude has no shell in this lane, so it cannot run git. Paste
+the change into the prompt — `git diff <base>...HEAD`, `git diff HEAD` if
+non-empty, `git diff --name-only <base>...HEAD`, and the untracked-file list —
+and say it is the change under review, not curated context; Claude reads the
+changed files and their neighbours itself. Before pasting, if any of those
+names is a secret-shaped file (`.env*`, `*.pem`, `*.key`, `*.p8`, `*.p12`,
+`*.pfx`, `secrets.env`, `credentials*.json`), return `skip`.
+
 
 Run Claude from the project root so it has filesystem context. Pipe the prompt
 via stdin in non-interactive print mode. Pin this council lane to **Claude
@@ -73,14 +101,16 @@ inherit the CLI's defaults or use a moving model alias:
 
 ```bash
 cd <project-root>
-CLAUDE_CODE_EFFORT_LEVEL=max claude -p --model claude-fable-5-1 --effort max --output-format stream-json --verbose <<'PROMPT'
+CLAUDE_CODE_EFFORT_LEVEL=max claude -p --model claude-fable-5-1 --effort max --output-format stream-json --verbose --permission-mode dontAsk --setting-sources "" --strict-mcp-config --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Agent,Skill" <<'PROMPT'
 <full prompt content>
 PROMPT
 ```
 
 On native Windows, use Python `subprocess.run` with an argument list:
 `[shutil.which("claude"), "-p", "--model", "claude-fable-5-1", "--effort",
-"max", "--output-format", "stream-json", "--verbose"]`. Feed the prompt via
+"max", "--output-format", "stream-json", "--verbose", "--permission-mode",
+"dontAsk", "--setting-sources", "", "--strict-mcp-config", "--disallowedTools",
+"Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Task,Agent,Skill"]`. Feed the prompt via
 `input=prompt`, with `text=True`, `encoding="utf-8"`, `capture_output=True`,
 `cwd=project_root`, and a bounded timeout. Pass a copy of `os.environ` with
 `CLAUDE_CODE_EFFORT_LEVEL` set to `max`; do not alter the parent environment.

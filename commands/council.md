@@ -1,18 +1,20 @@
 ---
-description: Convene a council of four reviewers (jiro, adversary, foundation, codex) to stress-test a plan (pre-implementation) or a diff (post-implementation) in parallel
+description: Convene a council of five reviewers (jiro, adversary, foundation, codex, grok) to stress-test a plan (pre-implementation) or a diff (post-implementation) in parallel
 allowed-tools: Read, Edit, Glob, Grep, Agent, AskUserQuestion, Bash
 ---
 
 # Council
 
-Convene the council. Four reviewers, four lenses, one synthesis.
+Convene the council. Five reviewers, one synthesis.
 
 - **jiro** — the craftsman. Removes parts. Fights complexity.
 - **adversary** — the breaker. Hunts failure modes.
 - **foundation** — the structural engineer and roadmap guardian.
 - **codex** — the outside opinion. A different model, a different brain.
+- **grok** — the second outside opinion (xAI's Grok, read-only). A third model
+  family, run beside codex so their catches can be compared over time.
 
-The council catches problems the author can't see — and the same four lenses
+The council catches problems the author can't see — and the same lenses
 work whether the artifact is a **plan** (before you build) or a **diff** (after
 you build). Both are high-value:
 
@@ -101,10 +103,36 @@ this conversation, or a matching doc under `docs/plans/`. The richest code
 review is "here is what we intended, here is what shipped — review the gap."
 The reviewers read the diff and the coupled neighbors it touches.
 
-## Step 2: Fan out in parallel
+## Step 2: Build the roster, then fan out in parallel
 
-Spawn all four subagents **in a single message with four tool calls**. They
-run concurrently. Each gets:
+**Roster first.** The default roster is five lanes: jiro, adversary,
+foundation, codex, grok. The only per-run change is a **seat swap** — the user
+asks to put Grok in one Claude seat (`/council grok=adversary`, "put grok in the
+foundation seat"). Then:
+
+- that seat's Claude agent is NOT spawned;
+- the grok agent is spawned with `SEAT: <seat>` and the absolute path of the
+  seat's agent file — the project's `.claude/agents/<seat>.md` if it exists,
+  otherwise `~/.claude/agents/<seat>.md`;
+- the generic grok lane does not also run (one Grok call per council).
+
+So a swapped round has four lanes: two Claude seats, grok-in-the-seat, codex.
+Seat swaps are per-run only; never persist or infer one. Everything below —
+fan-out, collection, `Ran:`, the verdict — is driven by this roster, not by a
+fixed count.
+
+Spawn every lane on the roster **in a single message, one tool call each**.
+They run concurrently.
+
+**The grok lane has a second phase you run** (a full review takes 10-15
+minutes; see `grok-outside.md`). Its agent replies `GROK READY` with `RUN:`
+and `ARTIFACT:` instead of a verdict. Run the `RUN:` command yourself — Bash
+tool, `run_in_background: true`, `timeout: 1800000` — and when its completion
+notification arrives, message the same grok agent `GROK RUN DONE — output:
+<task output file>`; its reply is the grok verdict. If anything in that
+handoff fails, grok is `skip`.
+
+Each lane gets:
 
 - **The mode, as an explicit first line** — "This is a CODE review of committed
   work" or "This is a PLAN review before any code is written." This single line
@@ -113,11 +141,11 @@ run concurrently. Each gets:
   - Plan mode: the plan file path, or the synthesized proposal.
   - Code mode: the diff itself. **jiro and adversary have no Bash** — run
     `git diff <base>...HEAD` yourself and paste the diff into their prompts;
-    they Read the changed files for surrounding context. foundation and codex
-    have Bash + git, so point them at the branch and base and let them
-    self-serve. (Pasting the diff to the two Claude reviewers is fine — same
-    model, no blind spot introduced. Only Codex must read the diff with its own
-    eyes; never paste code into the Codex prompt.)
+    they Read the changed files for surrounding context. foundation, codex and
+    grok have Bash + git, so point them at the branch and base and let them
+    self-serve — never paste code into the codex or grok prompts yourself.
+    (The grok bridge hands Grok the raw `git diff` itself, because Grok runs
+    with no shell; that is the change, not curated context.)
 - Brief context: what the user is trying to accomplish — plus the originating
   plan, when this is a code review that has one.
 - Code mode, when an originating plan exists: instruct each reviewer to also
@@ -130,15 +158,20 @@ Do NOT spawn them sequentially. Parallel is the entire point.
 
 ## Step 3: Collect verdicts
 
-Wait for all four to return. Each will respond with:
+Wait for every lane on the roster to return. Each will respond with:
 
 ```
 VERDICT: ship it | revise | rethink | skip
 [body]
 ```
 
-`skip` only comes from `codex` if the CLI is unavailable. Other agents do not
-return skip.
+`skip` comes only from the outside lanes (`codex`, `grok`), always with a
+reason. The Claude agents do not return skip.
+
+**A seat swap must not lose the lens.** If grok was in a Claude seat and
+returns `skip` or `ARTIFACT: partial`, spawn that seat's Claude agent with the
+same brief and let its verdict count; keep grok's findings in the list and
+show the stand-in in `Ran:` (below).
 
 ## Step 4: Synthesize — write it for the user, not for engineers
 
@@ -148,17 +181,21 @@ read. Default output is SHORT and in plain language:
 
 ```
 ## Council: [one plain sentence — what was reviewed, and in which mode]
-Ran: jiro (<model>/<effort>) · adversary (<model>/<effort>) · foundation (<model>/<effort>) · codex (<MODEL>/<EFFORT>)
+Ran: jiro (<model>/<effort>) · adversary (<model>/<effort>) · foundation (<model>/<effort>) · codex (<MODEL>/<EFFORT>) · grok (<MODEL>/<EFFORT>)
 
 **Bottom line:** [ship it | needs fixes | wrong approach] — one sentence why.
-[Overall = the most severe individual verdict: any rethink → wrong approach;
-any revise → needs fixes; ship it only if all four agree.]
+[Overall = the most severe non-skip verdict: any rethink → wrong approach;
+any revise → needs fixes; ship it only if every lane that ran agrees. A grok
+verdict marked `partial` keeps its findings in the list but does not set it.]
 
 **What they found** — merged across all reviewers, deduplicated, ranked by
 severity. Each item is one or two plain-language sentences: what's wrong and
-what happens if it isn't fixed. Typically 3–6 items; fold minor nits into a
-single closing line. No per-reviewer sections. No jargon. No file:line
-references unless the user asks.
+what happens if it isn't fixed, ending with the lanes that raised it in
+brackets — `[adversary, codex, grok]`. The tags are how the owner compares the
+outside models over time; tag only lanes that actually raised the point.
+Typically 3–6 items; fold minor nits into a single closing line. No
+per-reviewer sections. No jargon. No file:line references unless the user
+asks.
 
 **What happens next:** one or two sentences on what you will do with the
 findings (e.g. "Applying fixes 1–3 now; 4 is cosmetic, skipping unless you
@@ -170,9 +207,15 @@ want it.")
 [ALWAYS the final section of the message — nothing may come after it.]
 ```
 
-Build the `Ran:` line by reading the `model:`/`effort:` frontmatter of the
-three Claude agent files (one grep) plus the `MODEL:` and `EFFORT:` lines codex
-returns. For a reviewer on `inherit`, print the actual session model; when
+Build the `Ran:` line from the roster: the `model:`/`effort:` frontmatter of
+the Claude agent files that actually ran (one grep) plus the `MODEL:` and
+`EFFORT:` lines codex and grok return. A seat swap shows in its seat —
+`adversary (grok-4.7-build/high, seat swap)` — and has no separate grok
+entry; if the swapped Grok skipped and the Claude agent stood in, write
+`adversary (<model>/<effort>, stood in — grok skipped)`. When grok reports
+`ARTIFACT: partial`, add `, partial` inside its parentheses so a verdict on
+part of the change is visibly one. A skipped outside
+lane shows as `codex (skip — <reason>)`. For a reviewer on `inherit`, print the actual session model; when
 `effort:` is absent, report the inherited session effort. If a runtime value
 is unavailable, mark it unverified rather than guessing. This line is the
 user's drift alarm — a stale codex
@@ -197,9 +240,9 @@ If there is nothing: exactly one line — `🟢 Nothing needs your input.`
 
 ### Full detail on request
 
-Keep the four raw verdicts in hand but do not paste them by default. If the
+Keep the raw verdicts in hand but do not paste them by default. If the
 user asks ("show me the full council report"), give per-reviewer verdicts with
-Codex's response verbatim.
+the codex and grok responses verbatim.
 
 ## Step 5: Act on the verdict
 
@@ -250,23 +293,30 @@ and the 🔔/🟢 closer. It will just be short.
 - **Per-run:** if the user asks for a different model for this council only
   ("council this with everyone on opus"), pass the `model` override on each
   Agent call. Effort has no per-run override — frontmatter only.
+- **Outside lanes read only the repository** (grok and the Claude lane everywhere; codex on macOS/Linux — on Windows it is home-excluded, shown as `codex (gpt-6-astra/max, home-excluded)` in `Ran:`). How: each lane's file.
 - **codex** is pinned to GPT-6 Astra / max by the invocation in its outside
   reviewer instructions. This overrides `~/.codex/config.toml` for the review;
   its actual model and effort appear in `Ran:` every run. Honor explicit user
   overrides without silently changing the persistent defaults.
+- **grok** is pinned to grok-4.7 / high in its outside reviewer instructions,
+  and always runs read-only from its isolated `~/.grok-council` home.
+- **Seat swap** (`grok=jiro|adversary|foundation`) is per-run only — see
+  Step 2.
 
 ## Council Discipline
 
 - **Parallel always.** Sequential defeats the purpose.
+- **Hands off the checkout while lanes run.** Every lane reads the live checkout; queue fixes until every lane has returned.
 - **Write for the user.** The synthesis is read by the project owner, not an
   engineering panel — plain language beats completeness; detail lives in the
   on-request full report.
 - **No padding.** If the council is fast and clean, the report is short.
 - **Surface disagreements.** Don't average opposing views into mush — they go
   in the 🔔 block with a recommendation.
-- **Codex verbatim on request.** The default synthesis may summarize codex like
-  any other reviewer, but the full report must carry its response verbatim.
+- **Outside lanes verbatim on request.** The default synthesis may summarize
+  codex and grok like any other reviewer, but the full report must carry their
+  responses verbatim.
 - **Question budget is per-reviewer, not per-council.** Each reviewer has a
   hard cap of 2 questions and is instructed to use 0-1 in practice. Do not
   add questions of your own at the orchestrator level — you are the
-  synthesizer, not a fifth reviewer.
+  synthesizer, not another reviewer.
