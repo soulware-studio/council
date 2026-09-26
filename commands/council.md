@@ -1,18 +1,18 @@
 ---
-description: Convene a council of five reviewers (jiro, adversary, foundation, codex, grok) to stress-test a plan (pre-implementation) or a diff (post-implementation) in parallel
+description: Convene a council of four reviewers (jiro, adversary, foundation, codex; grok stands in when codex can't run) to stress-test a plan (pre-implementation) or a diff (post-implementation) in parallel
 allowed-tools: Read, Edit, Glob, Grep, Agent, AskUserQuestion, Bash
 ---
 
 # Council
 
-Convene the council. Five reviewers, one synthesis.
+Convene the council. Four reviewers, one synthesis.
 
 - **jiro** — the craftsman. Removes parts. Fights complexity.
 - **adversary** — the breaker. Hunts failure modes.
 - **foundation** — the structural engineer and roadmap guardian.
 - **codex** — the outside opinion. A different model, a different brain.
-- **grok** — the second outside opinion (xAI's Grok, read-only). A third model
-  family, run beside codex so their catches can be compared over time.
+- **grok** — the fallback outside opinion (xAI's Grok, read-only). A third model
+  family, run only when codex can't, or when the user asks for Grok on a run.
 
 The council catches problems the author can't see — and the same lenses
 work whether the artifact is a **plan** (before you build) or a **diff** (after
@@ -105,24 +105,34 @@ The reviewers read the diff and the coupled neighbors it touches.
 
 ## Step 2: Build the roster, then fan out in parallel
 
-**Roster first.** The default roster is five lanes: jiro, adversary,
-foundation, codex, grok. The only per-run change is a **seat swap** — the user
-asks to put Grok in one Claude seat (`/council grok=adversary`, "put grok in the
-foundation seat"). Then:
+**Roster first.** The default roster is four lanes: jiro, adversary,
+foundation, codex. Grok is off by default: codex has been the higher-signal,
+faster outside lane, so Grok is its fallback. Grok joins a round in exactly
+three cases:
 
-- that seat's Claude agent is NOT spawned;
-- the grok agent is spawned with `SEAT: <seat>` and the absolute path of the
-  seat's agent file — the project's `.claude/agents/<seat>.md` if it exists,
-  otherwise `~/.claude/agents/<seat>.md`;
-- the generic grok lane does not also run (one Grok call per council).
+- **Fallback.** codex returns `skip` (Astra unavailable, out of quota, timed
+  out, not signed in). Spawn the grok lane with the same brief as soon as that
+  skip arrives, without waiting for the other lanes, and let its verdict fill
+  the outside slot.
+- **On request, one run.** The user asks for Grok ("council this with grok").
+  It runs beside codex as a fifth lane.
+- **Seat swap, one run.** The user asks to put Grok in one Claude seat
+  (`/council grok=adversary`, "put grok in the foundation seat"). Then:
+  - that seat's Claude agent is NOT spawned;
+  - the grok agent is spawned with `SEAT: <seat>` and the absolute path of the
+    seat's agent file — the project's `.claude/agents/<seat>.md` if it exists,
+    otherwise `~/.claude/agents/<seat>.md`;
+  - the generic grok lane does not also run (one Grok call per council).
 
-So a swapped round has four lanes: two Claude seats, grok-in-the-seat, codex.
-Seat swaps are per-run only; never persist or infer one. Everything below —
+  So a swapped round has four lanes: two Claude seats, grok-in-the-seat, codex.
+
+All three are per-run only; never persist or infer one. Everything below —
 fan-out, collection, `Ran:`, the verdict — is driven by this roster, not by a
 fixed count.
 
 Spawn every lane on the roster **in a single message, one tool call each**.
-They run concurrently.
+They run concurrently. The fallback grok lane is the one exception: it starts
+when codex's skip arrives.
 
 **The grok lane has a second phase you run** (a full review takes 10-15
 minutes; see `grok-outside.md`). Its agent replies `GROK READY` with `RUN:`
@@ -168,6 +178,9 @@ VERDICT: ship it | revise | rethink | skip
 `skip` comes only from the outside lanes (`codex`, `grok`), always with a
 reason. The Claude agents do not return skip.
 
+**A codex skip calls in grok** (Step 2's fallback). If grok also skips, the
+round stands on the three Claude lanes, and `Ran:` shows both skips.
+
 **A seat swap must not lose the lens.** If grok was in a Claude seat and
 returns `skip` or `ARTIFACT: partial`, spawn that seat's Claude agent with the
 same brief and let its verdict count; keep grok's findings in the list and
@@ -181,7 +194,7 @@ read. Default output is SHORT and in plain language:
 
 ```
 ## Council: [one plain sentence — what was reviewed, and in which mode]
-Ran: jiro (<model>/<effort>) · adversary (<model>/<effort>) · foundation (<model>/<effort>) · codex (<MODEL>/<EFFORT>) · grok (<MODEL>/<EFFORT>)
+Ran: jiro (<model>/<effort>) · adversary (<model>/<effort>) · foundation (<model>/<effort>) · codex (<MODEL>/<EFFORT>)
 
 **Bottom line:** [ship it | needs fixes | wrong approach] — one sentence why.
 [Overall = the most severe non-skip verdict: any rethink → wrong approach;
@@ -191,8 +204,9 @@ verdict marked `partial` keeps its findings in the list but does not set it.]
 **What they found** — merged across all reviewers, deduplicated, ranked by
 severity. Each item is one or two plain-language sentences: what's wrong and
 what happens if it isn't fixed, ending with the lanes that raised it in
-brackets — `[adversary, codex, grok]`. The tags are how the owner compares the
-outside models over time; tag only lanes that actually raised the point.
+brackets — `[adversary, codex]`; tag only lanes that actually raised the
+point. When codex and grok both ran, the tags are how the owner compares the
+two outside models.
 Typically 3–6 items; fold minor nits into a single closing line. No
 per-reviewer sections. No jargon. No file:line references unless the user
 asks.
@@ -209,7 +223,9 @@ want it.")
 
 Build the `Ran:` line from the roster: the `model:`/`effort:` frontmatter of
 the Claude agent files that actually ran (one grep) plus the `MODEL:` and
-`EFFORT:` lines codex and grok return. A seat swap shows in its seat —
+`EFFORT:` lines codex and grok return. A fallback run shows both outside
+lanes: `codex (skip — <reason>) · grok (<MODEL>/<EFFORT>, fallback)`; a
+requested fifth lane shows as `grok (<MODEL>/<EFFORT>)`. A seat swap shows in its seat —
 `adversary (grok-4.7-build/high, seat swap)` — and has no separate grok
 entry; if the swapped Grok skipped and the Claude agent stood in, write
 `adversary (<model>/<effort>, stood in — grok skipped)`. When grok reports
@@ -299,7 +315,8 @@ and the 🔔/🟢 closer. It will just be short.
   its actual model and effort appear in `Ran:` every run. Honor explicit user
   overrides without silently changing the persistent defaults.
 - **grok** is pinned to grok-4.7 / high in its outside reviewer instructions,
-  and always runs read-only from its isolated `~/.grok-council` home.
+  and always runs read-only from its isolated `~/.grok-council` home. It is
+  the fallback lane (Step 2), not part of the default roster.
 - **Seat swap** (`grok=jiro|adversary|foundation`) is per-run only — see
   Step 2.
 

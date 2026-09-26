@@ -58,7 +58,7 @@ check for them:
   Without it, the council still runs fine without that lane. This outside
   lane invokes `gpt-6-astra` with `max` reasoning effort; its CLI/account must
   support those settings. Then run `grok --version` for the optional grok
-  lane. If it's missing and wanted, tell them: install xAI's Grok Build CLI and
+  fallback lane. If it's missing and wanted, tell them: install xAI's Grok Build CLI and
   sign the council's isolated Grok home in once with a SuperGrok / X Premium+
   account (`GROK_HOME=~/.grok-council grok login --device-auth`). Don't install
   it or sign in for them unasked. The lane configures its own isolation.

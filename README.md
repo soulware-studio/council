@@ -52,11 +52,12 @@ make once up front rather than something to rediscover later.
   (OpenAI's Codex) for an independent second read. A different brain catches
   what one brain's blind spots miss. Optional — if the Codex CLI isn't
   installed, this lane returns `skip` and the others still run.
-- **grok — the second outside opinion.** Hands the work to xAI's **Grok
-  Build CLI**, a third model family, read-only. It runs beside codex so you can
-  see, run after run, what each outside model catches that the other misses —
-  every finding is tagged with the reviewers that raised it. Optional, and
-  Claude Code-hosted only; without the CLI it returns `skip`.
+- **grok — the fallback outside opinion.** Hands the work to xAI's **Grok
+  Build CLI**, a third model family, read-only. Off by default: it runs when
+  codex can't (skip: not installed, not signed in, out of quota, timed out), or
+  when you ask for it on a run, and then every finding is tagged with the
+  reviewers that raised it. Optional, and Claude Code-hosted only; without the
+  CLI it returns `skip`.
 
 The overall verdict is the most severe of the reviewers that ran (a partial
 Grok read does not count toward it) (`ship it` / `revise` /
@@ -100,7 +101,7 @@ The public defaults depend on which tool starts the council:
 | Council started from | Jiro, Adversary, Foundation | Outside reviewers |
 | --- | --- | --- |
 | Codex | Inherit the Codex session's model and reasoning effort | Claude Fable 5.1 / max |
-| Claude Code | Inherit the Claude session's model and effort | GPT-6 Astra / max, and Grok 4.7 / high |
+| Claude Code | Inherit the Claude session's model and effort | GPT-6 Astra / max; Grok 4.7 / high as its fallback |
 
 The outside reviewers use full model IDs and explicit effort flags, overriding
 their CLI defaults for that review. Fable 5.1 requires Claude Code **2.1.251 or
@@ -174,8 +175,9 @@ repository-only.
 
 ## The Grok outside lane (optional)
 
-The fifth reviewer calls xAI's **Grok Build CLI** (`grok`), pinned to
-grok-4.7 / high. A review takes 10-15 minutes, so the orchestrator runs it as a
+The fallback reviewer calls xAI's **Grok Build CLI** (`grok`), pinned to
+grok-4.7 / high. It runs when the codex lane returns `skip`, or when you ask for
+it on a run. A review takes 10-15 minutes, so the orchestrator runs it as a
 background task while the other reviewers work. Grok is an agentic CLI that can edit files, run commands,
 read anywhere, and by default imports your Claude Code settings. So the lane
 runs it from an isolated home (`~/.grok-council`, config rewritten every run,
@@ -189,8 +191,8 @@ regulated data out of reviewed repositories.
 Setup, once per machine: install (`curl -fsSL https://x.ai/cli/install.sh |
 bash`, or on Windows `irm https://x.ai/cli/install.ps1 | iex`), then sign the
 isolated home in with a SuperGrok or X Premium+ account:
-`GROK_HOME=~/.grok-council grok login --device-auth`. Without Grok the
-council runs with the other four.
+`GROK_HOME=~/.grok-council grok login --device-auth`. Without Grok, a
+codex skip leaves the three Claude reviewers.
 
 ## Lessons from a few hundred runs
 
