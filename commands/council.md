@@ -310,7 +310,7 @@ and the 🔔/🟢 closer. It will just be short.
   ("council this with everyone on opus"), pass the `model` override on each
   Agent call. Effort has no per-run override — frontmatter only.
 - **Outside lanes read only the repository** (grok and the Claude lane everywhere; codex on macOS/Linux — on Windows it is home-excluded, shown as `codex (gpt-6-astra/max, home-excluded)` in `Ran:`). How: each lane's file.
-- **codex** is pinned to GPT-6 Astra / max by the invocation in its outside
+- **codex** is pinned to GPT-6.1 Sol / max (GPT-6 Astra / max on Windows) by the invocation in its outside
   reviewer instructions. This overrides `~/.codex/config.toml` for the review;
   its actual model and effort appear in `Ran:` every run. Honor explicit user
   overrides without silently changing the persistent defaults.

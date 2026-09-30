@@ -56,7 +56,8 @@ check for them:
   authenticate it (a paid ChatGPT plan, or an OpenAI API key) — don't attempt
   to install it for them without asking, it's their choice of auth method.
   Without it, the council still runs fine without that lane. This outside
-  lane invokes `gpt-6-astra` with `max` reasoning effort; its CLI/account must
+  lane invokes `gpt-6.1-sol` with `max` reasoning effort (`gpt-6-astra` on Windows,
+  with Codex CLI 0.153: 0.159's Windows sandbox needs whole-drive read); its CLI/account must
   support those settings. Then run `grok --version` for the optional grok
   fallback lane. If it's missing and wanted, tell them: install xAI's Grok Build CLI and
   sign the council's isolated Grok home in once with a SuperGrok / X Premium+
@@ -95,7 +96,7 @@ than overwriting the rest of the file.
 just did (which files went where, whether the other CLI was found, whether
 you added the automation policy), including the roster: three native reviewers
 inherit model and effort; the outside reviewer uses Fable 5.1 / max from Codex;
-from Claude Code the outside reviewers are GPT-6 Astra / max and Grok 4.7 / high. If you installed the Claude Code path,
+from Claude Code the outside reviewers are GPT-6.1 Sol / max (GPT-6 Astra on Windows) and Grok 4.7 / high. If you installed the Claude Code path,
 they can now type `/council` in **any** project (it's a global install). If
 you installed the Codex-native path into a project's `.agents/skills/`,
 it's available in **this project only** — say so explicitly rather than

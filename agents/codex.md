@@ -22,9 +22,11 @@ perspective*, not redundancy.
 
 Run: `codex --version`
 
-Use a current Codex CLI with GPT-6 Astra support. If the service reports that
-the CLI is too old, return `skip` and explain that Codex must be updated before
-this pinned lane can run; do not substitute another model.
+Use a current Codex CLI with GPT-6.1 Sol support (0.159 or newer). On Windows,
+use Codex CLI 0.153 instead: the lane runs GPT-6 Astra there, because 0.159's
+elevated Windows sandbox will not start unless it may read the whole drive.
+If the service reports that the CLI is too old, or that the model is at
+capacity, return `skip` and say which; do not substitute another model.
 
 If the command is not found, return immediately with:
 
@@ -144,8 +146,14 @@ case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; *) WIN=0 ;; esac
 ROOT="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"
 COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 if [ "$WIN" = 1 ]; then ROOT="$(cygpath -m "$ROOT")"; COMMON="$(cygpath -m "$COMMON")"; fi
+# The limit must stop the whole process group: `codex` is a Node launcher, and the
+# native process it starts keeps running if only the launcher dies. GNU timeout
+# already signals the group; the perl fallback (macOS) does it by hand.
 T() { if timeout --version 2>/dev/null | grep -q GNU; then timeout -k 10 "$@"; else
-      perl -e 'alarm shift; exec @ARGV' "$@"; fi; }
+      perl -e 'my $t = shift; my $pid = fork // die "fork: $!";
+        if (!$pid) { setpgrp(0, 0); exec @ARGV or exit 127 }
+        $SIG{ALRM} = sub { kill "TERM", -$pid; sleep 2; kill "KILL", -$pid; exit 142 };
+        alarm $t; waitpid($pid, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$@"; fi; }
 
 FS='":minimal"="read", ":workspace_roots"="read"'
 case "$COMMON" in "$ROOT"|"$ROOT"/*) ;; *) FS="$FS, \"$COMMON\"=\"read\"" ;; esac
@@ -156,19 +164,20 @@ for f in apps browser_use browser_use_external browser_use_full_cdp_access compu
          goals hooks multi_agent plugins remote_plugin plugin_sharing skill_mcp_dependency_install tool_suggest; do
   ARGS+=(--disable "$f"); done
 [ "$WIN" = 1 ] && ARGS+=(-c 'windows.sandbox="elevated"')
+MODEL=gpt-6.1-sol; [ "$WIN" = 1 ] && MODEL=gpt-6-astra
 if [ "$WIN" = 1 ]; then echo "CONFINEMENT: home-excluded"; else echo "CONFINEMENT: repository-only"; fi
 
 cd "$ROOT"
 set +e
 T 480 codex exec "${ARGS[@]}" -C "$(if [ "$WIN" = 1 ]; then cygpath -w "$ROOT"; else echo "$ROOT"; fi)" \
-  --model gpt-6-astra -c 'model_reasoning_effort="max"' - < "$PROMPT"
+  --model "$MODEL" -c 'model_reasoning_effort="max"' - < "$PROMPT"
 echo "CODEX_EXIT=$?"
 ```
 
 8 minutes is the ceiling, not a target. Codex is thorough and may read many
 files — keep it inside the budget with **tight file scope** (point it at
 specific files / line ranges, never an omnibus full-file read of a large file).
-This lane is pinned to **GPT-6 Astra / max**, overriding the CLI's configured
+This lane is pinned to **GPT-6.1 Sol / max** (GPT-6 Astra / max on Windows), overriding the CLI's configured
 model and effort. If a review needs more than 8 minutes, narrow the scope;
 keep the requested model and effort rather than reaching for the background
 path or silently lowering effort.
@@ -214,7 +223,7 @@ Wrap it like this:
 
 ```
 CONFINEMENT: [the script's CONFINEMENT line: repository-only | home-excluded]
-MODEL: [the model Codex actually ran, normally gpt-6-astra]
+MODEL: [the model Codex actually ran, normally gpt-6.1-sol; gpt-6-astra on Windows]
 EFFORT: [the reasoning effort Codex actually used, normally max]
 VERDICT: [extract from Codex output: ship it | revise | rethink]
 

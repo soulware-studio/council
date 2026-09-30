@@ -101,7 +101,7 @@ The public defaults depend on which tool starts the council:
 | Council started from | Jiro, Adversary, Foundation | Outside reviewers |
 | --- | --- | --- |
 | Codex | Inherit the Codex session's model and reasoning effort | Claude Fable 5.1 / max |
-| Claude Code | Inherit the Claude session's model and effort | GPT-6 Astra / max; Grok 4.7 / high as its fallback |
+| Claude Code | Inherit the Claude session's model and effort | GPT-6.1 Sol / max (GPT-6 Astra on Windows); Grok 4.7 / high as its fallback |
 
 The outside reviewers use full model IDs and explicit effort flags, overriding
 their CLI defaults for that review. Fable 5.1 requires Claude Code **2.1.251 or
